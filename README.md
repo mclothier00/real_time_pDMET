@@ -6,7 +6,7 @@ This code is developed in conjunction with the theoretical work described in:
 
 Yehorova, D., & Kretchmer, J. S. (2022). A multi-fragment real-time extension of projected density matrix embedding theory: Non-equilibrium electron dynamics in extended systems. arXiv preprint arXiv:2209.06368.
 
-# Instalation and Use 
+# Installation and Use 
 Dependency: PySCF (https://pyscf.org/install.html)
 
 After "real_time_pDMET" directory is added to the PYTHONPATH, example run files for the electron dynamics in 1D and 2D Anderson Impurity Models can be executed within "real_time_pDMET/rtpdmet/examples" directory.
