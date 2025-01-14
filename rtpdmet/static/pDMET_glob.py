@@ -84,8 +84,6 @@ class static_pdmet():
             else:
                 self.old_glob1RDM = np.copy(mf1RDM)
 
-        self.V_site = self.U
-
         self.mf1RDM = mf1RDM
 
     # Initialize the system from mf 1RDM and fragment information
