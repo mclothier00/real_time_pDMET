@@ -8,10 +8,10 @@ import real_time_pDMET.scripts.make_hams as make_hams
 import real_time_pDMET.rtpdmet.dynamics.dynamics_driver as dynamic_driver
 
 # set up system and static pdmet parameters
-NL = 3
-NR = 2
+NL = 29
+NR = 30
 Ndots = 1
-Nimp = 2 # fragment size
+Nimp = 3 # frangment size
 Nsites = NL+NR+Ndots
 Nele = Nsites
 Nfrag = int(Nsites/Nimp)
@@ -23,7 +23,7 @@ for i in range(Nfrag):
 # hamtype = 0
 
 # simplified tight-binding form of 2-electron  terms in the embedding Hamiltonian
-hamtype = 0
+hamtype = 1
 
 mubool = True
 muhistory = True
@@ -42,7 +42,7 @@ boundary = False #non-periodic hamiltonian
 
 # dynamics variables
 delt = 0.001
-Nstep = 200
+Nstep = 10000
 Nprint = 10
 init_time = 0.0
 dG = 1e-5
@@ -51,7 +51,7 @@ nproc = 1
 integrator = 'rk4'
 
 # dynamic hamiltonian parameters
-Full_dyn = True
+Full_dyn = False
 U_dyn = 3.0
 Vg_dyn = 0.0
 Vbias_dyn = 0.0
@@ -65,23 +65,23 @@ laser=False
 
 # form a Hamiltonian for a static calculation
 
-#if Ndots == 1:
-#    hubb_indx = np.array([29]) # impurity index
-#    t_implead = 1.0 # hopping parameter between a lead site and an impurity
-#    tleads = 1.0 # hopping parameter between two lead sites
+if Ndots == 1:
+    hubb_indx = np.array([29]) # impurity index
+    t_implead = 1.0 # hopping parameter between a lead site and an impurity
+    tleads = 1.0 # hopping parameter between two lead sites
 
-#    h_site, V_site = make_hams.make_ham_single_imp_anderson_realspace(
-#        NL, NR, Vg, U_t0, t_implead, Vbias, tleads, Full_static)
-#else:
+    h_site, V_site = make_hams.make_ham_single_imp_anderson_realspace(
+        NL, NR, Vg, U_t0, t_implead, Vbias, tleads, Full_static)
+else:
     #Can specify a range or any other array with impurity indicies
-hubb_indx = np.arange(NL, NL+Nimp)
-timp = 1.0 # hopping parameter between two impurities
-t_implead = 1.0
-tleads = 1.0
+    hubb_indx = np.arange(NL, NL+Nimp)
+    timp = 1.0 # hopping parameter between two impurities
+    t_implead = 1.0
+    tleads = 1.0
 
-h_site, V_site = make_hams.make_ham_multi_imp_anderson_realspace(
-    Ndots, NL, NR, Vg, U_t0, timp, t_implead, Vbias, tleads,
-    boundary, Full_static)
+    h_site, V_site = make_hams.make_ham_multi_imp_anderson_realspace(
+        Ndots, NL, NR, Vg, U_t0, timp, timplead, Vbias, hubb_indx, tleads,
+        boundary, Full_static)
 
 
 # run static calculation
@@ -97,13 +97,22 @@ system = transition_driver.transition(
     static, Nsites, Nele, Nfrag, impindx,
     h_site, V_site, hamtype, hubb_indx, boundary)
 
-hubb_indx = np.arange(NL, NL+Nimp)
-timp = 1.0
-t_implead = 1.0
-tleads = 1.0
+# form a Hamiltonian for dynamics
+if Ndots == 1:
+    hubb_indx = np.array([29])
+    t_implead = 1.0
+    tleads = 1.0
 
-h_site, V_site = make_hams.make_ham_multi_imp_anderson_realspace(
-    Ndots, NL, NR, Vg, U_dyn, timp, t_implead, Vbias, tleads, boundary, Full_dyn)
+    h_site, V_site = make_hams.make_ham_single_imp_anderson_realspace(
+        NL, NR, Vg, U_dyn, t_implead, Vbias, tleads, Full_dyn)
+else:
+    hubb_indx = np.arange(NL, NL+Nimp)
+    timp = 1.0
+    t_implead = 1.0
+    tleads = 1.0
+
+    h_site, V_site = make_hams.make_ham_multi_imp_anderson_realspace(
+        Ndots, NL, NR, Vg, U_dyn, timp, timplead, Vbias, hubb_indx, tleads, boundary, Full_dyn)
 
 # run dynamics
 dynamics = dynamic_driver.dynamics_driver(
