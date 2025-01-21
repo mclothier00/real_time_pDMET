@@ -8,14 +8,15 @@ import numpy as np
 import multiprocessing as multproc
 
 import time
+
+
 #####################################################################
 def get_ddt_mf_NOs(system, G_site):
-
-    ddt_mf1RDM = (-1j * (np.dot(G_site, system.mf1RDM)
-                         - np.dot(system.mf1RDM, G_site)))
-    ddt_NOevecs = (-1j * np.dot(G_site, system.NOevecs))
+    ddt_mf1RDM = -1j * (np.dot(G_site, system.mf1RDM) - np.dot(system.mf1RDM, G_site))
+    ddt_NOevecs = -1j * np.dot(G_site, system.NOevecs)
 
     return ddt_mf1RDM, ddt_NOevecs
+
 
 #####################################################################
 def get_ddt_glob(dG, system):
@@ -32,9 +33,9 @@ def get_ddt_glob(dG, system):
 
     return ddt_glob1RDM, G_site
 
+
 #####################################################################
 def get_ddt_mf1rdm_serial(dG, system, Nocc):
-
     # Subroutine to solve for the time-dependence of the MF 1RDM
     # this returns the time-derivative NOT i times the time-derivative
 
@@ -57,23 +58,25 @@ def get_ddt_mf1rdm_serial(dG, system, Nocc):
     Gmat_time = time.time()
     G_site = calc_Gmat(dG, system, iddt_glob1RDM)
 
-    ddt_mf1RDM = (-1j * (np.dot(G_site, system.mf1RDM)
-                         - np.dot(system.mf1RDM, G_site)))
-    ddt_NOevecs = (-1j * np.dot(G_site, system.NOevecs))
+    ddt_mf1RDM = -1j * (np.dot(G_site, system.mf1RDM) - np.dot(system.mf1RDM, G_site))
+    ddt_NOevecs = -1j * np.dot(G_site, system.NOevecs)
 
     ddt_glob1RDM = -1j * iddt_glob1RDM
 
     # Calculate alternative time-derivative of MF 1RDM
     # This method is more sensitive to numerical instabilitied associated with
     # NO degeneracies
-    short_NOcc = np.copy(system.NOevecs[:, :round(system.Nele/2)])
-    short_ddtNOcc = np.copy(ddt_NOevecs[:, :round(system.Nele/2)])
+    short_NOcc = np.copy(system.NOevecs[:, : round(system.Nele / 2)])
+    short_ddtNOcc = np.copy(ddt_NOevecs[:, : round(system.Nele / 2)])
     chk = 2 * (
         np.dot(short_ddtNOcc, short_NOcc.conj().T)
-        + np.dot(short_NOcc, short_ddtNOcc.conj().T))
+        + np.dot(short_NOcc, short_ddtNOcc.conj().T)
+    )
     ddtmf1RDM_check = np.allclose(chk, ddt_mf1RDM, rtol=0, atol=1e-5)
-    
+
     return ddt_glob1RDM, ddt_NOevecs, ddt_mf1RDM, G_site, ddtmf1RDM_check
+
+
 #####################################################################
 
 
@@ -81,11 +84,10 @@ def calc_iddt_glob1RDM(system):
     # Subroutine to calculate i times
     # time dependence of global 1RDM forcing anti-hermiticity
     rotmat_unpck = np.zeros(
-        [system.Nsites, system.Nsites, system.Nsites], dtype=complex)
-    iddt_corr1RDM_unpck = np.zeros(
-        [system.Nsites, system.Nsites], dtype=complex)
+        [system.Nsites, system.Nsites, system.Nsites], dtype=complex
+    )
+    iddt_corr1RDM_unpck = np.zeros([system.Nsites, system.Nsites], dtype=complex)
     for q in range(system.Nsites):
-
         # fragment for site q
         frag = system.frag_list[system.site_to_frag_list[q]]
 
@@ -100,9 +102,11 @@ def calc_iddt_glob1RDM(system):
         iddt_corr1RDM_unpck[:, q] = np.copy(frag.iddt_corr1RDM[:, qimp])
 
     # calculate intermediate matrix
-    tmp = np.einsum('paq,aq->pq', rotmat_unpck, iddt_corr1RDM_unpck)
+    tmp = np.einsum("paq,aq->pq", rotmat_unpck, iddt_corr1RDM_unpck)
 
-    return 0.5*(tmp - tmp.conj().T)
+    return 0.5 * (tmp - tmp.conj().T)
+
+
 #####################################################################
 
 
@@ -117,13 +121,14 @@ def calc_Gmat(dG, system, iddt_glob1RDM):
     G2_fast = utils.rot1el(iddt_glob1RDM, system.NOevecs)
     for a in range(system.Nsites):
         for b in range(system.Nsites):
-            if(a != b and np.abs(evals[a] - evals[b]) > dG):
-                G2_fast[a, b] /= (evals[b] - evals[a])
+            if a != b and np.abs(evals[a] - evals[b]) > dG:
+                G2_fast[a, b] /= evals[b] - evals[a]
             else:
                 G2_fast[a, b] = 0
-    G2_fast = (np.triu(G2_fast) +
-               np.triu(G2_fast, 1).conjugate().transpose())
-    G2_site = (utils.rot1el(G2_fast, utils.adjoint(system.NOevecs)))
+    G2_fast = np.triu(G2_fast) + np.triu(G2_fast, 1).conjugate().transpose()
+    G2_site = utils.rot1el(G2_fast, utils.adjoint(system.NOevecs))
 
     return G2_site
+
+
 #####################################################################
