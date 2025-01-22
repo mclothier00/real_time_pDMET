@@ -252,27 +252,43 @@ class system:
         #    )
 
         frag_list = self.frag_list
+        # print('impindx before broadcast: ',frag_list[3].impindx)
 
         frag_list = comm.bcast(frag_list, root=0)
 
         frag_per_rank = []
 
         for i, frag in enumerate(frag_list):
-            print(f"i: {i}")
-            print(f"rank: {rank}")
             if i % size == rank:
+                #       print(f"i: {i}")
+                #        print(f"rank: {rank}")
                 frag_per_rank.append(frag)
 
-        exit()
+        for i, frag in enumerate(frag_per_rank):
+            frag.get_iddt_corr1RDM(
+                self.h_site, self.V_site, self.hamtype, self.hubsite_indx
+            )
+        #     print("frag:", i)
 
-        # iddt_corr1RDM_list = [
-        #    x.get_iddt_corr1RDM(
-        #        self.h_site, self.V_site, self.hamtype, self.hubsite_indx
-        #    )
-        #    for x in sub_frag
-        # ]
+        frag_list = comm.gather(frag_per_rank, root=0)
+        if rank == 0:
+            #    print(self.frag_list)
+            f = frag_list
+            #   print('f type: ', type(f))
+            #   print('f[0] type: ', type(f[0]))
+            #   print('impindx 0 0: ',f[0][0].impindx)
+            #   print('impindx 0 1: ',f[0][1].impindx)
+            #   print('impindx 1 0: ',f[1][0].impindx)
+            comb_frags = []
+            for rank in frag_list:
+                for frag in rank:
+                    comb_frags.append(frag)
+            #       print(comb_frags[0].impindx)
+            self.frag_list = comb_frags
+        #  else:
+        #      print('other rank')
 
-        # iddt_corr1RDM_list = comm.gather(iddt_corr1RDM, root=0)
+        self.frag_list = comm.bcast(self.frag_list, root=0)
 
     #####################################################################
 
@@ -288,4 +304,6 @@ class system:
         for frag in self.frag_list:
             frag.eigvec_MF_check(self.mf1RDM)
 
-    ######################################################################
+    # #    frag.get_iddt_corr1RDM(
+    #        self.h_site, self.V_site, self.hamtype, self.hubsite_indx
+    #    )#####################################################################
