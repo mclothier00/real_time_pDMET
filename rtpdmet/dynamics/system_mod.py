@@ -1,6 +1,7 @@
 # Define a class for the total system
 import numpy as np
 from mpi4py import MPI
+import time
 
 # ####### TOTAL SYSTEM CLASS #######
 
@@ -83,6 +84,16 @@ class system:
         Subroutine to obtain global 1RDM formed from all fragments
         Need to have updated rotation matrices and correlated 1RDMs
         """
+
+        frag_list = comm.gather(self.frag_per_rank, root=0)
+
+        if rank == 0:
+            f = frag_list
+            comb_frags = []
+            for rank in frag_list:
+                for frag in rank:
+                    comb_frags.append(frag)
+            self.frag_list = comb_frags
 
         # form global 1RDM forcing hermiticity
 
@@ -246,15 +257,27 @@ class system:
         rank = comm.Get_rank()
         size = comm.Get_size()
 
+        # start_time = MPI.Wtime()
+
         # for frag in self.frag_list:
         #    frag.get_iddt_corr1RDM(
         #        self.h_site, self.V_site, self.hamtype, self.hubsite_indx
         #    )
 
+        # end = time.time()
+
+        # print(f"elapsed time: {end - start}")
+
         frag_list = self.frag_list
         # print('impindx before broadcast: ',frag_list[3].impindx)
 
+        start = time.time()
+
         frag_list = comm.bcast(frag_list, root=0)
+
+        end = time.time()
+
+        print(f"elapsed time: {end - start}")
 
         frag_per_rank = []
 
@@ -271,6 +294,8 @@ class system:
         #     print("frag:", i)
 
         frag_list = comm.gather(frag_per_rank, root=0)
+        # end_time = MPI.Wtime()
+
         if rank == 0:
             #    print(self.frag_list)
             f = frag_list
@@ -285,9 +310,15 @@ class system:
                     comb_frags.append(frag)
             #       print(comb_frags[0].impindx)
             self.frag_list = comb_frags
+        # total_time = end_time - start_time
+        # print(
+        #    f"Total wall time for the entire parallel execution: {total_time:.6f} seconds"
+        # )
+
         #  else:
         #      print('other rank')
 
+        # print(f"Process {rank} took {end_time - start_time:.6f} seconds")
         self.frag_list = comm.bcast(self.frag_list, root=0)
 
     #####################################################################
