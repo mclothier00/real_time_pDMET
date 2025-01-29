@@ -3,13 +3,13 @@
 # this is necessary when integrating the MF 1RDM and CI coefficients explicitly
 # while diagonalizing the MF1RDM at each time-step to obtain embedding orbitals
 
+import math
 import real_time_pDMET.scripts.utils as utils
 import numpy as np
 import multiprocessing as multproc
 
 import time
 from mpi4py import MPI
-
 
 
 #####################################################################
@@ -110,27 +110,39 @@ def calc_iddt_glob1RDM(system):
         frag_in_rank = frag_per_rank[0]
         for r, frag in enumerate(frag_per_rank):
             if r != 0:
-                comm.send(frag,dest=(r))
-        print("FRAG PER RANK LENGTH RANK 0: ", len(frag_per_rank))
+                comm.send(frag, dest=r)
+        print("FRAG PER RANK LENGTH RANK 0: ", len(frag_in_rank))
 
     else:
         frag_in_rank = comm.recv(source=0)
         print("FRAG IN RANK LENGTH RANK 1: ", len(frag_in_rank))
 
-    # if rank == 0:
-    #     for i, frag in enumerate(frag_list):
-    #         comm.send(frag,dest=i % size)
-            
-    # else:
-    #     comm.recv(source=0)
-    #     frag_per_rank.append(frag)
-    
+    glob1RDM = np.zeros([system.Nsites, system.Nsites], dtype=complex)
+
+    for i, frag in enumerate(frag_in_rank):
+        tmp = 0.5 * np.dot(
+            frag.rotmat, np.dot(frag.iddt_corr1RDM, frag.rotmat.conj().T)
+        )
+        for site in frag.impindx:
+            glob1RDM[site, :] += tmp[site, :]
+            glob1RDM[:, site] += tmp[:, site]
+
+    true_glob1RDM = np.zeros([system.Nsites, system.Nsites], dtype=complex)
+    comm.Allreduce(glob1RDM, true_glob1RDM, op=MPI.SUM)
+    print("True glob: ", true_glob1RDM)
+
+    # for e in range(len(frag_in_rank)):
+    #     for g in range(len(frag_in_rank)):
+    #         print(f"e: {e} \t g: {g}")
+    #         # print(f"f: {f} \n g: {g}")
+    #     # for f in range(rank):
+
     frag_per_rank_time = time.time()
 
-    for i,frag in enumerate(frag_in_rank):
-        tmp = np.dot(frag.rotmat, np.dot(frag.iddt_corr1RDM, frag.rotmat.conj().T))
-        print("Rank: ", rank, "Tmp length: ",len(tmp))
-    exit()
+    # if rank == 0 and i == 1:
+    #     print(frag.impindx)
+    #     print(tmp)
+    # print("Rank: ", rank, "Tmp length: ",len(tmp))
     for q in range(system.Nsites):
         # fragment for site q
         frag = system.frag_list[system.site_to_frag_list[q]]
@@ -148,7 +160,14 @@ def calc_iddt_glob1RDM(system):
     # calculate intermediate matrix
     tmp = np.einsum("paq,aq->pq", rotmat_unpck, iddt_corr1RDM_unpck)
 
-    return 0.5 * (tmp - tmp.conj().T)
+    old_glob = 0.5 * (tmp - tmp.conj().T)
+    print("old glob: ", old_glob)
+    # print("new glob: ", glob1RDM)
+    print("Glob difference: ", old_glob - true_glob1RDM)
+    # exit()
+    return true_glob1RDM
+
+    # return 0.5 * (tmp - tmp.conj().T)
 
 
 #####################################################################

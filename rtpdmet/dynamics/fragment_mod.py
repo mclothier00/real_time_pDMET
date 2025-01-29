@@ -14,6 +14,7 @@ class fragment:
     def __init__(self, impindx, Nsites, Nele):
         self.impindx = impindx
         # array defining index of impurity orbitals in site basis
+        print(self.impindx)
         self.Nimp = impindx.shape[0]
         # number of impurity orbitals in fragment
         self.Nsites = Nsites
