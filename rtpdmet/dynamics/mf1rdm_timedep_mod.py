@@ -8,6 +8,8 @@ import numpy as np
 import multiprocessing as multproc
 
 import time
+from mpi4py import MPI
+
 
 
 #####################################################################
@@ -87,6 +89,48 @@ def calc_iddt_glob1RDM(system):
         [system.Nsites, system.Nsites, system.Nsites], dtype=complex
     )
     iddt_corr1RDM_unpck = np.zeros([system.Nsites, system.Nsites], dtype=complex)
+    print("Calc_iddt_glob1RDM")
+
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+    print("SIZE: ", size)
+
+    frag_in_rank = []
+    frag_per_rank = []
+    for i in range(size):
+        frag_per_rank.append([])
+
+    if rank == 0:
+        print("FRAG LIST LENGTH: ", len(system.frag_list))
+        for i, frag in enumerate(system.frag_list):
+            print("FRAG LIST INDEX: ", i)
+            print("About to start comm.send")
+            frag_per_rank[i % size].append(frag)
+        frag_in_rank = frag_per_rank[0]
+        for r, frag in enumerate(frag_per_rank):
+            if r != 0:
+                comm.send(frag,dest=(r))
+        print("FRAG PER RANK LENGTH RANK 0: ", len(frag_per_rank))
+
+    else:
+        frag_in_rank = comm.recv(source=0)
+        print("FRAG IN RANK LENGTH RANK 1: ", len(frag_in_rank))
+
+    # if rank == 0:
+    #     for i, frag in enumerate(frag_list):
+    #         comm.send(frag,dest=i % size)
+            
+    # else:
+    #     comm.recv(source=0)
+    #     frag_per_rank.append(frag)
+    
+    frag_per_rank_time = time.time()
+
+    for i,frag in enumerate(frag_in_rank):
+        tmp = np.dot(frag.rotmat, np.dot(frag.iddt_corr1RDM, frag.rotmat.conj().T))
+        print("Rank: ", rank, "Tmp length: ",len(tmp))
+    exit()
     for q in range(system.Nsites):
         # fragment for site q
         frag = system.frag_list[system.site_to_frag_list[q]]

@@ -85,16 +85,6 @@ class system:
         Need to have updated rotation matrices and correlated 1RDMs
         """
 
-        frag_list = comm.gather(self.frag_per_rank, root=0)
-
-        if rank == 0:
-            f = frag_list
-            comb_frags = []
-            for rank in frag_list:
-                for frag in rank:
-                    comb_frags.append(frag)
-            self.frag_list = comb_frags
-
         # form global 1RDM forcing hermiticity
 
         # unpack necessary stuff
@@ -253,63 +243,57 @@ class system:
         # ie i\tilde{ \dot{ correlated 1RDM } } using notation from notes
         # NOTE: should have 1RDM and 2RDM calculated prior to calling this
 
-        comm = MPI.COMM_WORLD
-        rank = comm.Get_rank()
-        size = comm.Get_size()
+        # comm = MPI.COMM_WORLD
+        # rank = comm.Get_rank()
+        # size = comm.Get_size()
 
         # start_time = MPI.Wtime()
 
-        # for frag in self.frag_list:
-        #    frag.get_iddt_corr1RDM(
-        #        self.h_site, self.V_site, self.hamtype, self.hubsite_indx
-        #    )
+        for frag in self.frag_list:
+            frag.get_iddt_corr1RDM(
+                self.h_site, self.V_site, self.hamtype, self.hubsite_indx
+            )
 
         # end = time.time()
 
         # print(f"elapsed time: {end - start}")
 
-        frag_list = self.frag_list
+        # frag_list = self.frag_list
         # print('impindx before broadcast: ',frag_list[3].impindx)
 
-        start = time.time()
+        # frag_list = comm.bcast(frag_list, root=0)
 
-        frag_list = comm.bcast(frag_list, root=0)
+        # frag_per_rank = []
 
-        end = time.time()
+        # for i, frag in enumerate(frag_list):
+        #    if i % size == rank:
+        #       print(f"i: {i}")
+        #        print(f"rank: {rank}")
+        #        frag_per_rank.append(frag)
 
-        print(f"elapsed time: {end - start}")
-
-        frag_per_rank = []
-
-        for i, frag in enumerate(frag_list):
-            if i % size == rank:
-                #       print(f"i: {i}")
-                #        print(f"rank: {rank}")
-                frag_per_rank.append(frag)
-
-        for i, frag in enumerate(frag_per_rank):
-            frag.get_iddt_corr1RDM(
-                self.h_site, self.V_site, self.hamtype, self.hubsite_indx
-            )
+        # for i, frag in enumerate(frag_per_rank):
+        #    frag.get_iddt_corr1RDM(
+        #        self.h_site, self.V_site, self.hamtype, self.hubsite_indx
+        #    )
         #     print("frag:", i)
 
-        frag_list = comm.gather(frag_per_rank, root=0)
+        # frag_list = comm.gather(frag_per_rank, root=0)
         # end_time = MPI.Wtime()
 
-        if rank == 0:
-            #    print(self.frag_list)
-            f = frag_list
-            #   print('f type: ', type(f))
-            #   print('f[0] type: ', type(f[0]))
-            #   print('impindx 0 0: ',f[0][0].impindx)
-            #   print('impindx 0 1: ',f[0][1].impindx)
-            #   print('impindx 1 0: ',f[1][0].impindx)
-            comb_frags = []
-            for rank in frag_list:
-                for frag in rank:
-                    comb_frags.append(frag)
-            #       print(comb_frags[0].impindx)
-            self.frag_list = comb_frags
+        # if rank == 0:
+        #    print(self.frag_list)
+        #    f = frag_list
+        #   print('f type: ', type(f))
+        #   print('f[0] type: ', type(f[0]))
+        #   print('impindx 0 0: ',f[0][0].impindx)
+        #   print('impindx 0 1: ',f[0][1].impindx)
+        #   print('impindx 1 0: ',f[1][0].impindx)
+        #    comb_frags = []
+        #    for rank in frag_list:
+        #        for frag in rank:
+        #            comb_frags.append(frag)
+        #       print(comb_frags[0].impindx)
+        #    self.frag_list = comb_frags
         # total_time = end_time - start_time
         # print(
         #    f"Total wall time for the entire parallel execution: {total_time:.6f} seconds"
@@ -319,7 +303,7 @@ class system:
         #      print('other rank')
 
         # print(f"Process {rank} took {end_time - start_time:.6f} seconds")
-        self.frag_list = comm.bcast(self.frag_list, root=0)
+        # self.frag_list = comm.bcast(self.frag_list, root=0)
 
     #####################################################################
 
