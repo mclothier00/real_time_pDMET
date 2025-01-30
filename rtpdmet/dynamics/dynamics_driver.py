@@ -8,6 +8,7 @@ import real_time_pDMET.scripts.utils as utils
 import pickle
 import time
 import math
+from mpi4py import MPI
 # ########### CLASS TO RUN REAL-TIME DMET CALCULATION #########
 
 
@@ -133,11 +134,33 @@ class dynamics_driver:
         self.corrdens_old = np.zeros((self.tot_system.Nsites))
         # self.corrdens_old += 1
 
-        # Paralelization is under development
+        # Parallelization
 
-        # start_pool = time.time()
-        # self.frag_pool = multproc.Pool(nproc)
-        # print("time to from pool", time.time()-start_pool)
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+        size = comm.Get_size()
+
+        frag_in_rank = []
+        frag_per_rank = []
+        for i in range(size):
+            frag_per_rank.append([])
+
+        if rank == 0:
+            # print("FRAG LIST LENGTH: ", len(self.tot_system.frag_list))
+            for i, frag in enumerate(self.tot_system.frag_list):
+                #    print("FRAG LIST INDEX: ", i)
+                #    print("About to start comm.send")
+                frag_per_rank[i % size].append(frag)
+                self.tot_system.frag_list = None
+            self.tot_system.frag_in_rank = frag_per_rank[0]
+            for r, frag in enumerate(frag_per_rank):
+                if r != 0:
+                    comm.send(frag, dest=r)
+            # print("FRAG PER RANK LENGTH RANK 0: ", len(frag_in_rank))
+        else:
+            self.tot_system.frag_in_rank = comm.recv(source=0)
+            self.tot_system.frag_list = None
+            # print("FRAG IN RANK LENGTH RANK 1: ", len(frag_in_rank))
 
     #####################################################################
     def kernel(self):
@@ -257,7 +280,7 @@ class dynamics_driver:
 
             init_CIcoeffs_list = []
             init_rotmat_list = []
-            for frag in self.tot_system.frag_list:
+            for frag in self.tot_system.frag_in_rank:
                 init_rotmat_list.append(np.copy(frag.rotmat))
                 init_CIcoeffs_list.append(np.copy(frag.CIcoeffs))
 
@@ -273,7 +296,7 @@ class dynamics_driver:
             self.tot_system.NOevecs = init_NOevecs + 0.5 * l1
             self.tot_system.glob1RDM = init_glob1RDM + 0.5 * n1
             self.tot_system.mf1RDM = init_mf1RDM + 0.5 * p1
-            for cnt, frag in enumerate(self.tot_system.frag_list):
+            for cnt, frag in enumerate(self.tot_system.frag_in_rank):
                 frag.rotmat = init_rotmat_list[cnt] + 0.5 * k1_list[cnt]
                 frag.CIcoeffs = init_CIcoeffs_list[cnt] + 0.5 * m1_list[cnt]
 
@@ -287,7 +310,7 @@ class dynamics_driver:
             self.tot_system.NOevecs = init_NOevecs + 0.5 * l2
             self.tot_system.glob1RDM = init_glob1RDM + 0.5 * n2
             self.tot_system.mf1RDM = init_mf1RDM + 0.5 * p2
-            for cnt, frag in enumerate(self.tot_system.frag_list):
+            for cnt, frag in enumerate(self.tot_system.frag_in_rank):
                 frag.rotmat = init_rotmat_list[cnt] + 0.5 * k2_list[cnt]
                 frag.CIcoeffs = init_CIcoeffs_list[cnt] + 0.5 * m2_list[cnt]
 
@@ -301,7 +324,7 @@ class dynamics_driver:
             self.tot_system.NOevecs = init_NOevecs + 1.0 * l3
             self.tot_system.glob1RDM = init_glob1RDM + 1.0 * n3
             self.tot_system.mf1RDM = init_mf1RDM + 1.0 * p3
-            for cnt, frag in enumerate(self.tot_system.frag_list):
+            for cnt, frag in enumerate(self.tot_system.frag_in_rank):
                 frag.rotmat = init_rotmat_list[cnt] + 1.0 * k3_list[cnt]
                 frag.CIcoeffs = init_CIcoeffs_list[cnt] + 1.0 * m3_list[cnt]
 
@@ -321,7 +344,7 @@ class dynamics_driver:
             self.tot_system.mf1RDM = init_mf1RDM + 1.0 / 6.0 * (
                 p1 + 2.0 * p2 + 2.0 * p3 + p4
             )
-            for cnt, frag in enumerate(self.tot_system.frag_list):
+            for cnt, frag in enumerate(self.tot_system.frag_in_rank):
                 frag.rotmat = init_rotmat_list[cnt] + 1.0 / 6.0 * (
                     k1_list[cnt]
                     + 2.0 * k2_list[cnt]
@@ -432,7 +455,7 @@ class dynamics_driver:
         self.tot_system.get_frag_Hemb()
 
         # Make sure Ecore for each fragment is 0 for dynamics
-        for frag in self.tot_system.frag_list:
+        for frag in self.tot_system.frag_in_rank:
             frag.Ecore = 0.0
 
         # Calculate change in propagated variables
@@ -453,7 +476,7 @@ class dynamics_driver:
 
         # Calculate change in embedding orbitals
         change_rotmat_list = []
-        for frag in self.tot_system.frag_list:
+        for frag in self.tot_system.frag_in_rank:
             change_rotmat_list.append(-1j * self.delt * np.dot(frag.rotmat, frag.Xmat))
 
         # Calculate change in CI coefficients in parallel
@@ -461,7 +484,7 @@ class dynamics_driver:
         no_paralel_start = time.time()
         change_CIcoeffs_list = []
 
-        for ifrag, frag in enumerate(self.tot_system.frag_list):
+        for ifrag, frag in enumerate(self.tot_system.frag_in_rank):
             change_CIcoeffs_list.append(applyham_wrapper(frag, self.delt))
 
         return (
@@ -489,15 +512,19 @@ class dynamics_driver:
         self.tot_system.get_DMET_Nele()
 
         # Print correlated density in the site basis
-        cnt = 0
-        corrdens = np.zeros(self.tot_system.Nsites)
-        for frag in self.tot_system.frag_list:
-            corrdens[cnt : cnt + frag.Nimp] = np.copy(
-                np.diag(np.real(frag.corr1RDM[: frag.Nimp]))
-            )
-            cnt += frag.Nimp
-        corrdens = np.insert(corrdens, 0, current_time)
-        np.savetxt(self.file_corrdens, corrdens.reshape(1, corrdens.shape[0]), fmt_str)
+        # cnt = 0
+        # corrdens = np.zeros(self.tot_system.Nsites)
+        # for frag in self.tot_system.frag_in_rank:
+        #    corrdens[cnt : cnt + frag.Nimp] = np.copy(
+        #        np.diag(np.real(frag.corr1RDM[: frag.Nimp]))
+        #    )
+        #    cnt += frag.Nimp
+        # corrdens = np.insert(corrdens, 0, current_time)
+        # print(f"fragments: \n {corrdens}")
+        globdens = np.diag(np.real(self.tot_system.glob1RDM))
+        globdens = np.insert(globdens, 0, current_time)
+
+        np.savetxt(self.file_corrdens, globdens.reshape(1, globdens.shape[0]), fmt_str)
         self.file_corrdens.flush()
 
         # Print output data
@@ -507,10 +534,10 @@ class dynamics_driver:
         output[1] = self.tot_system.DMET_E
         output[2] = self.tot_system.DMET_Nele
         output[3] = np.real(np.trace(self.tot_system.mf1RDM))
-        output[4] = np.real(np.trace(self.tot_system.frag_list[0].corr1RDM))
-        output[5] = np.real(np.einsum("ppqq", self.tot_system.frag_list[0].corr2RDM))
-        output[6] = np.linalg.norm(self.tot_system.frag_list[0].CIcoeffs) ** 2
-        output[7] = np.linalg.norm(self.tot_system.frag_list[0].rotmat[:, 4]) ** 2
+        # output[4] = np.real(np.trace(self.tot_system.frag_list[0].corr1RDM))
+        # output[5] = np.real(np.einsum("ppqq", self.tot_system.frag_list[0].corr2RDM))
+        # output[6] = np.linalg.norm(self.tot_system.frag_list[0].CIcoeffs) ** 2
+        # output[7] = np.linalg.norm(self.tot_system.frag_list[0].rotmat[:, 4]) ** 2
         # self.tot_system.get_nat_orbs()
         if np.allclose(
             self.tot_system.glob1RDM,
@@ -538,17 +565,21 @@ class dynamics_driver:
         fmt_str = "%20.8e"
 
         self.tot_system.get_DMET_E(self.nproc)
-        self.tot_system.get_DMET_Nele()
+        # self.tot_system.get_DMET_Nele()
 
-        cnt = 0
-        corrdens = np.zeros(self.tot_system.Nsites)
-        for frag in self.tot_system.frag_list:
-            corrdens[cnt : cnt + frag.Nimp] = np.diag(
-                np.real(frag.corr1RDM[: frag.Nimp])
-            )
-            cnt += frag.Nimp
-        corrdens = np.insert(corrdens, 0, current_time)
-        np.savetxt(self.file_corrdens, corrdens.reshape(1, corrdens.shape[0]), fmt_str)
+        # cnt = 0
+        # corrdens = np.zeros(self.tot_system.Nsites)
+        # for frag in self.tot_system.frag_in_rank:
+        #    corrdens[cnt : cnt + frag.Nimp] = np.diag(
+        #        np.real(frag.corr1RDM[: frag.Nimp])
+        #    )
+        #    cnt += frag.Nimp
+        # corrdens = np.insert(corrdens, 0, current_time)
+        # print(f"fragments: \n {corrdens}")
+        globdens = np.diag(np.real(self.tot_system.glob1RDM))
+        globdens = np.insert(globdens, 0, current_time)
+
+        np.savetxt(self.file_corrdens, globdens.reshape(1, globdens.shape[0]), fmt_str)
         self.file_corrdens.flush()
 
     #####################################################################

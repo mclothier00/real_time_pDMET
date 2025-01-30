@@ -85,87 +85,77 @@ def get_ddt_mf1rdm_serial(dG, system, Nocc):
 def calc_iddt_glob1RDM(system):
     # Subroutine to calculate i times
     # time dependence of global 1RDM forcing anti-hermiticity
-    rotmat_unpck = np.zeros(
-        [system.Nsites, system.Nsites, system.Nsites], dtype=complex
-    )
-    iddt_corr1RDM_unpck = np.zeros([system.Nsites, system.Nsites], dtype=complex)
-    print("Calc_iddt_glob1RDM")
 
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
-    size = comm.Get_size()
-    print("SIZE: ", size)
+    # comm = MPI.COMM_WORLD
+    # rank = comm.Get_rank()
+    # size = comm.Get_size()
+    # print("SIZE: ", size)
 
-    frag_in_rank = []
-    frag_per_rank = []
-    for i in range(size):
-        frag_per_rank.append([])
+    # frag_in_rank = []
+    # frag_per_rank = []
+    # for i in range(size):
+    #    frag_per_rank.append([])
 
-    if rank == 0:
-        print("FRAG LIST LENGTH: ", len(system.frag_list))
-        for i, frag in enumerate(system.frag_list):
-            print("FRAG LIST INDEX: ", i)
-            print("About to start comm.send")
-            frag_per_rank[i % size].append(frag)
-        frag_in_rank = frag_per_rank[0]
-        for r, frag in enumerate(frag_per_rank):
-            if r != 0:
-                comm.send(frag, dest=r)
-        print("FRAG PER RANK LENGTH RANK 0: ", len(frag_in_rank))
+    # if rank == 0:
+    #    print("FRAG LIST LENGTH: ", len(system.frag_list))
+    #    for i, frag in enumerate(system.frag_list):
+    #        print("FRAG LIST INDEX: ", i)
+    #        print("About to start comm.send")
+    #        frag_per_rank[i % size].append(frag)
+    #    frag_in_rank = frag_per_rank[0]
+    #    for r, frag in enumerate(frag_per_rank):
+    #        if r != 0:
+    #            comm.send(frag, dest=r)
+    #    print("FRAG PER RANK LENGTH RANK 0: ", len(frag_in_rank))
 
-    else:
-        frag_in_rank = comm.recv(source=0)
-        print("FRAG IN RANK LENGTH RANK 1: ", len(frag_in_rank))
+    # else:
+    #    frag_in_rank = comm.recv(source=0)
+    #    print("FRAG IN RANK LENGTH RANK 1: ", len(frag_in_rank))
 
-    glob1RDM = np.zeros([system.Nsites, system.Nsites], dtype=complex)
+    iddt_glob1RDM = np.zeros([system.Nsites, system.Nsites], dtype=complex)
 
-    for i, frag in enumerate(frag_in_rank):
+    for i, frag in enumerate(system.frag_in_rank):
         tmp = 0.5 * np.dot(
             frag.rotmat, np.dot(frag.iddt_corr1RDM, frag.rotmat.conj().T)
         )
         for site in frag.impindx:
-            glob1RDM[site, :] += tmp[site, :]
-            glob1RDM[:, site] += tmp[:, site]
+            iddt_glob1RDM[site, :] += tmp[site, :]
+            iddt_glob1RDM[:, site] += tmp[:, site]
 
-    true_glob1RDM = np.zeros([system.Nsites, system.Nsites], dtype=complex)
-    comm.Allreduce(glob1RDM, true_glob1RDM, op=MPI.SUM)
-    print("True glob: ", true_glob1RDM)
+    true_iddt_glob1RDM = np.zeros([system.Nsites, system.Nsites], dtype=complex)
+    MPI.COMM_WORLD.Allreduce(iddt_glob1RDM, true_iddt_glob1RDM, op=MPI.SUM)
+    # print("True glob: ", true_iddt_glob1RDM)
 
-    # for e in range(len(frag_in_rank)):
-    #     for g in range(len(frag_in_rank)):
-    #         print(f"e: {e} \t g: {g}")
-    #         # print(f"f: {f} \n g: {g}")
-    #     # for f in range(rank):
+    ### OLD CODE ###
 
-    frag_per_rank_time = time.time()
+    # rotmat_unpck = np.zeros(
+    #    [system.Nsites, system.Nsites, system.Nsites], dtype=complex
+    # )
+    # iddt_corr1RDM_unpck = np.zeros([system.Nsites, system.Nsites], dtype=complex)
+    # print("Calc_iddt_glob1RDM")
 
-    # if rank == 0 and i == 1:
-    #     print(frag.impindx)
-    #     print(tmp)
-    # print("Rank: ", rank, "Tmp length: ",len(tmp))
-    for q in range(system.Nsites):
-        # fragment for site q
-        frag = system.frag_list[system.site_to_frag_list[q]]
+    # for q in range(system.Nsites):
+    #    # fragment for site q
+    #    frag = system.frag_list[system.site_to_frag_list[q]]
 
-        # index within fragment corresponding to site q -
-        # note that q is an impurity orbital
-        qimp = system.site_to_impindx[q]
+    #    # index within fragment corresponding to site q -
+    #    # note that q is an impurity orbital
+    #    qimp = system.site_to_impindx[q]
 
-        # unpack rotation matrix
-        rotmat_unpck[:, :, q] = np.copy(frag.rotmat)
+    #    # unpack rotation matrix
+    #    rotmat_unpck[:, :, q] = np.copy(frag.rotmat)
 
-        # unpack necessary portion of iddt_corr1RDM
-        iddt_corr1RDM_unpck[:, q] = np.copy(frag.iddt_corr1RDM[:, qimp])
+    #    # unpack necessary portion of iddt_corr1RDM
+    #    iddt_corr1RDM_unpck[:, q] = np.copy(frag.iddt_corr1RDM[:, qimp])
 
-    # calculate intermediate matrix
-    tmp = np.einsum("paq,aq->pq", rotmat_unpck, iddt_corr1RDM_unpck)
+    ## calculate intermediate matrix
+    # tmp = np.einsum("paq,aq->pq", rotmat_unpck, iddt_corr1RDM_unpck)
 
-    old_glob = 0.5 * (tmp - tmp.conj().T)
-    print("old glob: ", old_glob)
-    # print("new glob: ", glob1RDM)
-    print("Glob difference: ", old_glob - true_glob1RDM)
-    # exit()
-    return true_glob1RDM
+    # old_glob = 0.5 * (tmp - tmp.conj().T)
+    # print("old glob: ", old_glob)
+    ## print("new glob: ", glob1RDM)
+    # print("Glob difference: ", old_glob - true_iddt_glob1RDM)
+    return true_iddt_glob1RDM
 
     # return 0.5 * (tmp - tmp.conj().T)
 
