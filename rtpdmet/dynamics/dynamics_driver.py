@@ -137,7 +137,7 @@ class dynamics_driver:
         # Parallelization
 
         comm = MPI.COMM_WORLD
-        rank = comm.Get_rank()
+        self.rank = comm.Get_rank()
         size = comm.Get_size()
 
         frag_in_rank = []
@@ -145,7 +145,7 @@ class dynamics_driver:
         for i in range(size):
             frag_per_rank.append([])
 
-        if rank == 0:
+        if self.rank == 0:
             # print("FRAG LIST LENGTH: ", len(self.tot_system.frag_list))
             for i, frag in enumerate(self.tot_system.frag_list):
                 #    print("FRAG LIST INDEX: ", i)
@@ -179,32 +179,33 @@ class dynamics_driver:
         for step in range(self.Nstep):
             # Print data
             self.step = step
-            if step == 0:
-                self.print_just_dens(current_time)
-                sys.stdout.flush()
+            if self.rank == 0:
+                if step == 0:
+                    self.print_just_dens(current_time)
+                    sys.stdout.flush()
 
-            if (np.mod(step, self.Nprint) == 0) and step > 1:
-                print(
-                    "Writing data at step ",
-                    step,
-                    "and time",
-                    current_time,
-                    "for RT-pDMET calculation",
-                )
-                self.print_data(current_time)
-                sys.stdout.flush()
+                if (np.mod(step, self.Nprint) == 0) and step > 1:
+                    print(
+                        "Writing data at step ",
+                        step,
+                        "and time",
+                        current_time,
+                        "for RT-pDMET calculation",
+                    )
+                    self.print_data(current_time)
+                    sys.stdout.flush()
 
-            # if a trajectory restarted, record data before a 1st step
-            if current_time != 0 and step == 0:
-                print(
-                    "Writing data at step ",
-                    step,
-                    "and time",
-                    current_time,
-                    "for RT-pDMET calculation",
-                )
-                self.print_data(current_time)
-                sys.stdout.flush()
+                # if a trajectory restarted, record data before a 1st step
+                if current_time != 0 and step == 0:
+                    print(
+                        "Writing data at step ",
+                        step,
+                        "and time",
+                        current_time,
+                        "for RT-pDMET calculation",
+                    )
+                    self.print_data(current_time)
+                    sys.stdout.flush()
 
             # Integrate FCI coefficients and rotation matrix for all fragments
             self.integrate(self.nproc, current_time)
@@ -214,24 +215,25 @@ class dynamics_driver:
             sys.stdout.flush()
 
         # Print data at final step regardless of Nprint
-        print(
-            "Writing data at step ",
-            step + 1,
-            "and time",
-            current_time,
-            "for RT-pDMET calculation",
-        )
-        self.print_data(current_time)
-        sys.stdout.flush()
+        if self.rank == 0:
+            print(
+                "Writing data at step ",
+                step + 1,
+                "and time",
+                current_time,
+                "for RT-pDMET calculation",
+            )
+            self.print_data(current_time)
+            sys.stdout.flush()
 
-        # Close output files
-        self.file_output.close()
-        self.file_corrdens.close()
+            # Close output files
+            self.file_output.close()
+            self.file_corrdens.close()
 
-        if self.Vbias == True:
-            self.file_current.close()
-        if self.laser == True:
-            self.file_laser.close()
+            if self.Vbias == True:
+                self.file_current.close()
+            if self.laser == True:
+                self.file_laser.close()
 
         # self.frag_pool.close()
         print()
